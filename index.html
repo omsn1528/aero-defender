@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aero Defender Mobile</title>
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #000000;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      touch-action: none;
+    }
+    body.dark-mode {
+      --bg-color: #2d2d2d;
+      --text-color: #ffffff;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+    /* Container with 9:16 aspect ratio */
+    #gameContainer {
+      position: relative;
+      width: 100vw;
+      height: 177.78vw;
+      max-height: 100vh;
+      max-width: 56.25vh;
+      margin: auto;
+      background: #000;
+      overflow: hidden;
+    }
+    /* Background Video */
+    #bgVideo {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+    /* Game Canvas */
+    #gameCanvas {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    /* In-Game UI */
+    #gameUI {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+      border-radius: 5px;
+      color: #fff;
+      z-index: 2;
+    }
+    /* Menus */
+    .menu {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.9);
+      color: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .menu-button {
+      padding: 15px 30px;
+      font-size: 1.2em;
+      background: #2196F3;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 200px;
+    }
+    .hidden {
+      display: none;
+    }
+    /* Store Modal Items */
+    #storeModal {
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .store-item {
+      margin: 5px auto;
+      padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+      width: 90%;
+    }
+    .store-item img {
+      width: 40px;
+      height: auto;
+    }
+    .store-item button {
+      padding: 10px;
+      font-size: 1em;
+    }
+    /* Mobile Control Buttons */
+    #mobileControls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 4;
+    }
+    #mobileControls button {
+      padding: 15px;
+      font-size: 1.5em;
+      border: none;
+      border-radius: 5px;
+      background: #2196F3;
+      color: #fff;
+      cursor: pointer;
+    }
+    /* Pause Button (top-right) */
+    #pauseButton {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 4;
+      padding: 10px;
+      font-size: 1.5em;
+      border: none;
+      border-radius: 5px;
+      background: #f44336;
+      color: #fff;
+      cursor: pointer;
+    }
+    /* Volume Control in Main Menu */
+    #volumeControl {
+      margin-top: 15px;
+      background: rgba(0,0,0,0.7);
+      padding: 10px;
+      border-radius: 5px;
+      color: #fff;
+    }
+    #volumeControl label {
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <!-- Background Video -->
+    <video id="bgVideo" autoplay loop muted playsinline>
+      <source src="videos/bgvideo.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+    <!-- In-Game UI -->
+    <div id="gameUI">
+      <div>Score: <span id="score">0</span></div>
+      <div>High Score: <span id="highScore">0</span></div>
+      <div>Coins: <span id="coins">0</span></div>
+    </div>
+    <!-- Main Menu -->
+    <div id="mainMenu" class="menu">
+      <h1>Aero Defender</h1>
+      <button class="menu-button" onclick="playClickSound(); startGame();">Start Game</button>
+      <button class="menu-button" onclick="playClickSound(); toggleStore();">Store</button>
+      <button class="menu-button" onclick="playClickSound(); toggleDarkMode();">Toggle Dark Mode</button>
+      <div id="volumeControl">
+        <label for="volumeSlider">Music Volume:</label>
+        <input type="range" id="volumeSlider" min="0" max="100" value="50" onchange="setMusicVolume(this.value)">
+        <div id="volumeDisplay">50%</div>
+      </div>
+    </div>
+    <!-- Pause Menu -->
+    <div id="pauseMenu" class="menu hidden">
+      <h2>Game Paused</h2>
+      <button class="menu-button" onclick="playClickSound(); resumeGame();">Resume</button>
+      <button class="menu-button" onclick="playClickSound(); restartGame();">Restart</button>
+      <button class="menu-button" onclick="playClickSound(); showMainMenu();">Main Menu</button>
+    </div>
+    <!-- Store Modal (shield option removed) -->
+    <div id="storeModal" class="menu hidden">
+      <h2>Store</h2>
+      <div class="store-item">
+        <img src="images/plane1.png" alt="Plane 1">
+        <button class="menu-button" onclick="playClickSound(); buyPlane(1);">Select Default Plane</button>
+      </div>
+      <div class="store-item">
+        <img src="images/plane2.png" alt="Plane 2">
+        <button class="menu-button" onclick="playClickSound(); buyPlane(2);">Unlock Plane 2 - 100 Coins</button>
+      </div>
+      <div class="store-item">
+        <img src="images/plane3.png" alt="Plane 3">
+        <button class="menu-button" onclick="playClickSound(); buyPlane(3);">Unlock Plane 3 - 100 Coins</button>
+      </div>
+      <div class="store-item">
+        <img src="images/plane4.png" alt="Plane 4">
+        <button class="menu-button" onclick="playClickSound(); buyPlane(4);">Unlock Plane 4 - 100 Coins</button>
+      </div>
+      <button class="menu-button" onclick="playClickSound(); toggleStore();">Close Store</button>
+    </div>
+    <!-- Mobile Control Buttons -->
+    <button id="pauseButton" onclick="togglePause();">||</button>
+    <div id="mobileControls">
+      <button onclick="movePlaneLeft();">←</button>
+      <button onclick="movePlaneRight();">→</button>
+      <button onclick="acceleratePlane();">↑</button>
+      <button onclick="deceleratePlane();">↓</button>
+    </div>
+  </div>
+  <script>
+    // Global Variables and Setup
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let gameState = 'menu'; // 'menu', 'playing', 'paused', 'gameover'
+    let score = 0;
+    let coins = parseInt(localStorage.getItem('coins')) || 0;
+    let highScore = parseInt(localStorage.getItem('highScore')) || 0;
+    
+    // Aircraft Speed settings
+    const basePlaneSpeed = 10;
+    const acceleratedPlaneSpeed = 20;
+    
+    // Default Aircraft Selection
+    let currentPlane = 0; // Default plane image index
+    
+    // Movement: 5 Horizontal Lanes and 7 Vertical Steps
+    const lanePositions = [0.15, 0.3, 0.5, 0.7, 0.85];
+    const verticalSteps = [0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0];
+    let currentLane = 2; // Start in center lane (index 2)
+    let currentStep = 4; // Start on the 3rd horizontal line from the bottom
+    
+    // Plane Object
+    const plane = {
+      x: 0,
+      y: 0,
+      width: 60,
+      height: 60
+    };
+    function resetPlanePosition() {
+      plane.x = lanePositions[currentLane] * canvas.width;
+      plane.y = verticalSteps[currentStep] * canvas.height;
+    }
+    resetPlanePosition();
+    
+    let isShieldActive = false;
+    
+    // Dynamic difficulty factor
+    function getDifficultyFactor() {
+      return 1 + score / 2000;
+    }
+    
+    // Game Objects
+    let missiles = [];
+    let coinsArray = [];
+    let shieldsArray = [];
+    let lastMissileTime = 0, missileInterval = 1500;
+    let lastCoinTime = 0, coinInterval = 5000;
+    // Shield spawn less frequently than coins (e.g., every 15 seconds)
+    let lastShieldTime = 0, shieldInterval = 15000;
+    
+    // Unlocked planes management – supporting 4 plane slots
+    let unlockedPlanes = JSON.parse(localStorage.getItem('unlockedPlanes'));
+    if (!unlockedPlanes) {
+      unlockedPlanes = [ { expiry: null }, { expiry: 0 }, { expiry: 0 }, { expiry: 0 } ];
+    } else {
+      while (unlockedPlanes.length < 4) {
+        unlockedPlanes.push({ expiry: 0 });
+      }
+    }
+    
+    // Assets: four plane images plus missile, coin, and shield
+    const assets = {
+      planes: [new Image(), new Image(), new Image(), new Image()],
+      missile: new Image(),
+      coin: new Image(),
+      shield: new Image()
+    };
+    assets.planes[0].src = 'images/plane1.png';
+    assets.planes[1].src = 'images/plane2.png';
+    assets.planes[2].src = 'images/plane3.png';
+    assets.planes[3].src = 'images/plane4.png';
+    assets.missile.src = 'images/missile.png';
+    assets.coin.src = 'images/coin.png';
+    // Use this image as the collectable item for shield
+    assets.shield.src = 'images/shield.png';
+    
+    const missileSize = 40;
+    const coinSize = 30;
+    const shieldCollectableSize = 30; // Size for the shield collectable item
+    
+    // Sound Assets
+    const moveSound = new Audio('sounds/move.mp3');
+    const boosterSound = new Audio('sounds/booster.mp3');
+    const explosionSound = new Audio('sounds/explosion.mp3');
+    const clickSound = new Audio('sounds/click.mp3');
+    const coinSound = new Audio('sounds/coinsound.mp3');
+    const shieldCollectedSound = new Audio('sounds/shieldcollected.mp3');
+    
+    // Background Music
+    const backgroundMusic = new Audio('sounds/background.mp3');
+    backgroundMusic.loop = true;
+    backgroundMusic.volume = 0.5;
+    function startBackgroundMusic() {
+      backgroundMusic.play().catch(() => {});
+    }
+    
+    function resizeCanvas() {
+      const container = document.getElementById('gameContainer');
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      resetPlanePosition();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    function updateUI() {
+      document.getElementById('score').textContent = Math.floor(score);
+      document.getElementById('highScore').textContent = highScore;
+      document.getElementById('coins').textContent = coins;
+    }
+    updateUI();
+    
+    function gameLoop(timestamp) {
+      if (gameState !== 'playing') return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let difficulty = getDifficultyFactor();
+      
+      // Spawn missiles and coins
+      if (timestamp - lastMissileTime > missileInterval) {
+        spawnMissile(difficulty);
+        lastMissileTime = timestamp;
+      }
+      if (timestamp - lastCoinTime > coinInterval) {
+        spawnCoin(difficulty);
+        lastCoinTime = timestamp;
+      }
+      // Spawn shield collectable (lower frequency)
+      if (timestamp - lastShieldTime > shieldInterval) {
+        spawnShield(difficulty);
+        lastShieldTime = timestamp;
+      }
+      
+      updateMissiles(difficulty);
+      updateCoins(difficulty);
+      updateShields(difficulty);
+      checkCollisions();
+      
+      drawPlane();
+      drawMissiles();
+      drawCoins();
+      drawShields();
+      
+      score += basePlaneSpeed * 0.05;
+      if (score > highScore) {
+        highScore = Math.floor(score);
+        localStorage.setItem('highScore', highScore);
+      }
+      updateUI();
+      
+      // Optional: Check boundaries
+      if (plane.x < 0 || plane.x > canvas.width || plane.y < 0 || plane.y > canvas.height) {
+        gameOver();
+        return;
+      }
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // Updated drawPlane: Draws the plane image and, if shield is active, draws a green border around it.
+    function drawPlane() {
+      // Draw the plane image
+      ctx.drawImage(assets.planes[currentPlane], plane.x - plane.width/2, plane.y - plane.height/2, plane.width, plane.height);
+      // If shield is active, draw a bright green border around the plane
+      if (isShieldActive) {
+        ctx.save();
+        ctx.strokeStyle = "lime"; // Bright green
+        ctx.lineWidth = 5; // Adjust border thickness as needed
+        ctx.strokeRect(plane.x - plane.width/2, plane.y - plane.height/2, plane.width, plane.height);
+        ctx.restore();
+      }
+    }
+    
+    function spawnMissile(difficulty) {
+      const laneIndex = Math.floor(Math.random() * lanePositions.length);
+      const x = lanePositions[laneIndex] * canvas.width;
+      missiles.push({
+        x: x,
+        y: -50,
+        speed: 4 * difficulty,
+        size: missileSize
+      });
+    }
+    function updateMissiles(difficulty) {
+      for (let i = missiles.length - 1; i >= 0; i--) {
+        missiles[i].y += missiles[i].speed;
+        if (missiles[i].y > canvas.height + 50) {
+          missiles.splice(i, 1);
+          coins += 1;
+          localStorage.setItem('coins', coins);
+        }
+      }
+    }
+    function drawMissiles() {
+      missiles.forEach(missile => {
+        ctx.drawImage(assets.missile, missile.x - missile.size/2, missile.y - missile.size/2, missile.size, missile.size);
+      });
+    }
+    
+    function spawnCoin(difficulty) {
+      const laneIndex = Math.floor(Math.random() * lanePositions.length);
+      const x = lanePositions[laneIndex] * canvas.width;
+      coinsArray.push({
+        x: x,
+        y: -30,
+        speed: 3 * difficulty,
+        size: coinSize
+      });
+    }
+    function updateCoins(difficulty) {
+      for (let i = coinsArray.length - 1; i >= 0; i--) {
+        coinsArray[i].y += coinsArray[i].speed;
+        if (coinsArray[i].y > canvas.height + coinsArray[i].size) {
+          coinsArray.splice(i, 1);
+        }
+      }
+    }
+    function drawCoins() {
+      coinsArray.forEach(coin => {
+        ctx.drawImage(assets.coin, coin.x - coin.size/2, coin.y - coin.size/2, coin.size, coin.size);
+      });
+    }
+    
+    // Shield collectable functions
+    function spawnShield(difficulty) {
+      const laneIndex = Math.floor(Math.random() * lanePositions.length);
+      const x = lanePositions[laneIndex] * canvas.width;
+      shieldsArray.push({
+        x: x,
+        y: -30,
+        speed: 2 * difficulty,
+        size: shieldCollectableSize
+      });
+    }
+    function updateShields(difficulty) {
+      for (let i = shieldsArray.length - 1; i >= 0; i--) {
+        shieldsArray[i].y += shieldsArray[i].speed;
+        if (shieldsArray[i].y > canvas.height + shieldsArray[i].size) {
+          shieldsArray.splice(i, 1);
+        }
+      }
+    }
+    function drawShields() {
+      shieldsArray.forEach(shield => {
+        ctx.drawImage(assets.shield, shield.x - shield.size/2, shield.y - shield.size/2, shield.size, shield.size);
+      });
+    }
+    
+    function checkCollisions() {
+      // Missile collisions
+      for (let i = missiles.length - 1; i >= 0; i--) {
+        const dx = missiles[i].x - plane.x;
+        const dy = missiles[i].y - plane.y;
+        if (!isShieldActive && Math.sqrt(dx*dx + dy*dy) < (plane.width/2 + missiles[i].size/2)) {
+          gameOver();
+          return;
+        }
+      }
+      // Coin collisions
+      for (let i = coinsArray.length - 1; i >= 0; i--) {
+        const dx = coinsArray[i].x - plane.x;
+        const dy = coinsArray[i].y - plane.y;
+        if (Math.sqrt(dx*dx + dy*dy) < (plane.width/2 + coinsArray[i].size/2)) {
+          coins += 10;
+          coinSound.currentTime = 0;
+          coinSound.play();
+          coinsArray.splice(i, 1);
+          localStorage.setItem('coins', coins);
+        }
+      }
+      // Shield collisions
+      for (let i = shieldsArray.length - 1; i >= 0; i--) {
+        const dx = shieldsArray[i].x - plane.x;
+        const dy = shieldsArray[i].y - plane.y;
+        if (Math.sqrt(dx*dx + dy*dy) < (plane.width/2 + shieldsArray[i].size/2)) {
+          // Activate shield for 10 seconds with green border effect
+          isShieldActive = true;
+          shieldCollectedSound.currentTime = 0;
+          shieldCollectedSound.play();
+          shieldsArray.splice(i, 1);
+          setTimeout(() => {
+            isShieldActive = false;
+          }, 10000);
+        }
+      }
+    }
+    
+    function gameOver() {
+      explosionSound.play();
+      gameState = 'gameover';
+      document.getElementById('pauseMenu').classList.remove('hidden');
+    }
+    
+    document.addEventListener('keydown', (e) => {
+      if (gameState === 'playing') {
+        if (e.key === 'ArrowLeft') {
+          if (currentLane > 0) {
+            currentLane--;
+            plane.x = lanePositions[currentLane] * canvas.width;
+            moveSound.play();
+          }
+        } else if (e.key === 'ArrowRight') {
+          if (currentLane < lanePositions.length - 1) {
+            currentLane++;
+            plane.x = lanePositions[currentLane] * canvas.width;
+            moveSound.play();
+          }
+        } else if (e.key === 'ArrowUp') {
+          acceleratePlane();
+        } else if (e.key === 'ArrowDown') {
+          deceleratePlane();
+        } else if (e.key === 'Escape') {
+          togglePause();
+        }
+      } else if (gameState === 'paused' || gameState === 'gameover') {
+        if (e.key === 'Escape') {
+          showMainMenu();
+        }
+      }
+    });
+    
+    function movePlaneLeft() {
+      if (currentLane > 0) {
+        currentLane--;
+        plane.x = lanePositions[currentLane] * canvas.width;
+        moveSound.play();
+      }
+    }
+    function movePlaneRight() {
+      if (currentLane < lanePositions.length - 1) {
+        currentLane++;
+        plane.x = lanePositions[currentLane] * canvas.width;
+        moveSound.play();
+      }
+    }
+    
+    function acceleratePlane() {
+      if (currentStep > 1) {
+        currentStep = Math.max(0, currentStep - 2);
+        plane.y = verticalSteps[currentStep] * canvas.height;
+        boosterSound.play();
+      } else if (currentStep > 0) {
+        currentStep--;
+        plane.y = verticalSteps[currentStep] * canvas.height;
+        boosterSound.play();
+      }
+    }
+    
+    function deceleratePlane() {
+      if (currentStep < verticalSteps.length - 1) {
+        currentStep++;
+        plane.y = verticalSteps[currentStep] * canvas.height;
+        moveSound.play();
+      }
+    }
+    
+    function togglePause() {
+      playClickSound();
+      if (gameState === 'playing') {
+        gameState = 'paused';
+        document.getElementById('pauseMenu').classList.remove('hidden');
+        backgroundMusic.pause();
+      } else if (gameState === 'paused') {
+        gameState = 'playing';
+        document.getElementById('pauseMenu').classList.add('hidden');
+        backgroundMusic.play();
+        requestAnimationFrame(gameLoop);
+      }
+    }
+    
+    function resumeGame() {
+      gameState = 'playing';
+      document.getElementById('pauseMenu').classList.add('hidden');
+      backgroundMusic.play();
+      requestAnimationFrame(gameLoop);
+    }
+    
+    function restartGame() {
+      startGame();
+    }
+    
+    function showMainMenu() {
+      gameState = 'menu';
+      document.getElementById('mainMenu').classList.remove('hidden');
+      document.getElementById('pauseMenu').classList.add('hidden');
+    }
+    
+    function startGame() {
+      playClickSound();
+      gameState = 'playing';
+      score = 0;
+      missiles = [];
+      coinsArray = [];
+      shieldsArray = [];
+      isShieldActive = false;
+      resetPlanePosition();
+      backgroundMusic.play();
+      document.getElementById('mainMenu').classList.add('hidden');
+      document.getElementById('pauseMenu').classList.add('hidden');
+      updateUI();
+      requestAnimationFrame(gameLoop);
+    }
+    
+    function toggleStore() {
+      const storeModal = document.getElementById('storeModal');
+      playClickSound();
+      if (storeModal.classList.contains('hidden')) {
+        storeModal.classList.remove('hidden');
+        if (gameState === 'playing') gameState = 'paused';
+      } else {
+        storeModal.classList.add('hidden');
+        if (gameState === 'paused') {
+          gameState = 'playing';
+          requestAnimationFrame(gameLoop);
+        }
+      }
+    }
+    
+    // buyPlane: For Plane 1 (default) no cost; for Planes 2–4, deduct 100 coins and unlock for 24 hours if not already unlocked.
+    function buyPlane(planeId) {
+      const index = planeId - 1;
+      const now = Date.now();
+      if (index === 0) {
+        currentPlane = 0;
+        alert("Default Plane selected.");
+        return;
+      }
+      if (unlockedPlanes[index].expiry && unlockedPlanes[index].expiry > now) {
+        currentPlane = index;
+        alert("Plane " + planeId + " is already unlocked.");
+      } else {
+        if (coins >= 100) {
+          coins -= 100;
+          unlockedPlanes[index].expiry = now + 86400000; // 24 hours unlock
+          currentPlane = index;
+          alert("Plane " + planeId + " unlocked for 24 hours.");
+          localStorage.setItem('unlockedPlanes', JSON.stringify(unlockedPlanes));
+          localStorage.setItem('coins', coins);
+          updateUI();
+        } else {
+          alert("Not enough coins to unlock Plane " + planeId + ".");
+        }
+      }
+    }
+    
+    function playClickSound() {
+      clickSound.currentTime = 0;
+      clickSound.play();
+    }
+    
+    function setMusicVolume(value) {
+      const vol = parseInt(value, 10) / 100;
+      backgroundMusic.volume = vol;
+      document.getElementById('volumeDisplay').textContent = value + "%";
+    }
+    
+    function toggleDarkMode() {
+      playClickSound();
+      document.body.classList.toggle('dark-mode');
+      localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+    }
+    if (localStorage.getItem('darkMode') === 'true') {
+      document.body.classList.add('dark-mode');
+    }
+    
+    function init() {
+      updateUI();
+    }
+    init();
+  </script>
+</body>
+</html>
